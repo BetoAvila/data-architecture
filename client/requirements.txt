@@ -1,0 +1,6 @@
+fastavro
+SQLAlchemy
+pandas
+numpy
+
+# MySQL: 'mysql+mysqlconnector://db_user:password@localhost:3306/db'
