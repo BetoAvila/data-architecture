@@ -1,6 +1,5 @@
 fastavro
-SQLAlchemy
+mysql-connector-python
 pandas
 numpy
 
-# MySQL: 'mysql+mysqlconnector://db_user:password@localhost:3306/db'
