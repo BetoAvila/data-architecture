@@ -8,3 +8,5 @@ RUN apt-get update -y && \
     nano
 RUN pip install --upgrade pip
 RUN pip install -r requirements.txt
+EXPOSE 3306
+EXPOSE 33060

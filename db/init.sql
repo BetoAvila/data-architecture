@@ -1,11 +1,6 @@
-CREATE DATABASE db;
+CREATE DATABASE default_db;
 
-USE db;
-
-CREATE USER 'db_user' @'localhost' IDENTIFIED BY 'password';
-
-GRANT
-    ALL PRIVILEGES ON db.* TO 'db_user' @'localhost' IDENTIFIED BY 'password';
+USE default_db;
 
 -- Creating jobs table
 
