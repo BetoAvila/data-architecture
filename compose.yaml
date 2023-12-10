@@ -34,4 +34,10 @@ networks:
 volumes:
     app-vol:
 
-
+        # log
+        # prevent writes of nulls
+        # build:
+        # api
+        # update func
+        # save to avro (keep n more recent backups or from last m days)
+        # restore from avro

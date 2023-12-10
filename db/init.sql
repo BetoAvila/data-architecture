@@ -1,13 +1,13 @@
-CREATE DATABASE default_db;
+CREATE DATABASE app_db;
 
-USE default_db;
+USE app_db;
 
 -- Creating jobs table
 
 CREATE TABLE
     jobs(
         job_id INT NOT NULL AUTO_INCREMENT,
-        job_title VARCHAR(100) NOT NULL,
+        job_name VARCHAR(100) NOT NULL,
         PRIMARY KEY (job_id)
     );
 
