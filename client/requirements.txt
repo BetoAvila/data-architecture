@@ -1,5 +1,4 @@
 fastavro
-mysql-connector-python
-pandas
-numpy
-
+# pandas
+# numpy
+pyspark==3.3.3

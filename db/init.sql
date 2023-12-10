@@ -16,7 +16,7 @@ CREATE TABLE
 CREATE TABLE
     departments(
         department_id INT NOT NULL AUTO_INCREMENT,
-        department_title VARCHAR(100) NOT NULL,
+        department_name VARCHAR(100) NOT NULL,
         PRIMARY KEY (department_id)
     );
 
