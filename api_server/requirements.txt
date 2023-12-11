@@ -4,9 +4,5 @@ fastapi
 pandas
 numpy
 SQLAlchemy
-# mysql-connector-python
-# mysqlclient
-pyodbc
-asyncmy
 PyMySQL
 cryptography
