@@ -2,5 +2,7 @@
 *.pdf
 .gitignore
 .DS*
+*.ipy*
 
 # Folders
+/.vscode

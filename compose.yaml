@@ -1,18 +1,19 @@
 services:
 
     # spark 3.3.3 python 3.8.10
-    client:
-        build: ./client
+    api_server:
+        build: ./api_server
         command: /bin/bash
         tty: true
         stdin_open: true
         networks:
             - app-net
         volumes:
-            - app-vol:/shared
+            - app-vol:/tmp
         depends_on:
             - db
         expose:
+            - 5000
             - 3306
             - 33060
 
@@ -21,8 +22,8 @@ services:
         build: ./db
         networks:
             - app-net
-        volumes:
-            - app-vol:/shared
+        # volumes:
+        #     - app-vol:/shared
         expose:
             - 3306
             - 33060
