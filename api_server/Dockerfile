@@ -1,4 +1,4 @@
-FROM python:3.7-slim
+FROM python:3.11-slim
 USER root
 ENV LANG=C.UTF-8
 ENV DEBIAN_FRONTEND=noninteractive

@@ -1,3 +1,12 @@
-# fastavro
-pyspark==2.4.8
+fastavro
+# pyspark==2.4.8
 fastapi
+pandas
+numpy
+SQLAlchemy
+# mysql-connector-python
+# mysqlclient
+pyodbc
+asyncmy
+PyMySQL
+cryptography
