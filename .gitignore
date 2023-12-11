@@ -3,6 +3,7 @@
 .gitignore
 .DS*
 *.ipy*
+*.jar
 
 # Folders
 /.vscode

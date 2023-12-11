@@ -1,9 +1,16 @@
 services:
+    # mysql 8.1.0
+    db:
+        build: ./db
+        networks:
+            - app-net
+        expose:
+            - 3306
+            - 33060
 
-    # spark 3.3.3 python 3.8.10
-    api_server:
-        build: ./api_server
-        command: /bin/bash
+    # python 3.11
+    api:
+        build: ./api
         tty: true
         stdin_open: true
         networks:
@@ -13,20 +20,24 @@ services:
         depends_on:
             - db
         expose:
-            - 5000
-            - 3306
-            - 33060
+            - 8000
+            # - 3306
+            # - 33060
 
-    # mysql 8.1.0
-    db:
-        build: ./db
+            # python 3.11
+    client:
+        build: ./client
+        command: /bin/bash
+        tty: true
+        stdin_open: true
         networks:
             - app-net
-        # volumes:
-        #     - app-vol:/shared
+        volumes:
+            - app-vol:/tmp
+        depends_on:
+            - api
         expose:
-            - 3306
-            - 33060
+            - 8000
 
 networks:
     app-net:
@@ -35,10 +46,4 @@ networks:
 volumes:
     app-vol:
 
-        # log
-        # prevent writes of nulls
-        # build:
-        # api
-        # update func
-        # save to avro (keep n more recent backups or from last m days)
-        # restore from avro
+
