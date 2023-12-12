@@ -3,7 +3,7 @@ apt-get update && \
     apt-get upgrade -y && \
     apt-get install \
     nano
-mv data/* /tmp/data/
+mv data/*.csv /tmp/data/
 pip install --upgrade pip
 pip install -r requirements.txt
 pip install "uvicorn[standard]"

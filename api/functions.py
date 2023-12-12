@@ -2,8 +2,9 @@ from pyclbr import Function
 from fastavro import writer, reader, parse_schema
 from datetime import datetime
 import pandas as pd
-import numpy as np
 import logging
+import stat
+import os
 
 from sqlalchemy import create_engine
 
@@ -11,7 +12,7 @@ from sqlalchemy import create_engine
 # Logging
 logging.basicConfig(
     level=logging.INFO,
-    filename=f'/tmp/logs/server_{datetime.now().strftime("%Y_%m_%d_%H_%M_%S")}.log',
+    filename=f'/tmp/logs/api_{datetime.now().strftime("%Y_%m_%d_%H_%M_%S")}.log',
     format='%(levelname)s | %(message)s')
 
 # MySQL connection
@@ -109,6 +110,7 @@ def backup_mysql_to_avro(table: str) -> dict:
         df = read_mysql(table)
         if df.shape[0] > 0:
             if table == 'employees': df.hiring_date = df.hiring_date.dt.strftime('%Y-%m-%d %H:%M:%S')
+            if os.path.exists(f'/tmp/data/{table}.avro'): os.remove(f'/tmp/data/{table}.avro')
             data = df.to_dict(orient='records')
             sc = parse_schema(schemas[table][1])
             with open(f'/tmp/data/{table}.avro', 'wb') as out:
@@ -118,7 +120,7 @@ def backup_mysql_to_avro(table: str) -> dict:
         return {'response': f'Successfully backed {df.shape[0]} rows from {table} table to Avro file'}
     except Exception as e:
         le(f'Error when backing data up from table {table}: {e}')
-        return {'response': f'Incorrect table name: {table}'}
+        return {'response': f'Incorrect table name: {table} or missing Avro file'}
 
 
 def restore_mysql_from_avro(table: str):
@@ -127,14 +129,19 @@ def restore_mysql_from_avro(table: str):
     Args:
         - `table` (str): Table name to backup, either `'jobs', 'departments' or 'employees'`.
     """
-    with open(f'/tmp/data/{table}.avro', 'rb') as fo:
-        avro_reader = reader(fo)
-        data = [record for record in avro_reader]
-    df = pd.DataFrame(data)
-    if table == 'employees':
-        df.hiring_date = pd.to_datetime(df.hiring_date, format='%Y-%m-%d %H:%M:%S')
-    write_mysql(df, table, 'replace')
-    li(f'Restored {df.shape[0]} rows into {table} table on MySQL from Avro file')
+    try:
+        with open(f'/tmp/data/{table}.avro', 'rb') as fo:
+            avro_reader = reader(fo)
+            data = [record for record in avro_reader]
+        df = pd.DataFrame(data)
+        if table == 'employees':
+            df.hiring_date = pd.to_datetime(df.hiring_date, format='%Y-%m-%d %H:%M:%S')
+        write_mysql(df, table, 'replace')
+        li(f'Restored {df.shape[0]} rows into {table} table on MySQL from Avro file')
+        return {'response': f'Successfully restored {table} table in MySQL'}
+    except Exception as e:
+        le(f'Error when reading avro file, possible missing file, ensure there was a backup before a restoring process: {e}')
+        return {'response': f'Missing {table} avro backup file'}
 
 
 def update_mysql(table: str) -> dict:   
@@ -148,7 +155,7 @@ def update_mysql(table: str) -> dict:
         - `dict`: Response of query
     """
     try:
-        df = read_csv('new_records_' + table)
+        df = read_csv(table)
         write_mysql(df, table, 'append')
         li(f'Appended {df.shape[0]} new rows into {table} table on MySQL')
         return {'response':f'{df.shape[0]} new records updated into {table} table'}
@@ -204,6 +211,7 @@ def read_csv(table: str) -> pd.DataFrame:
     Returns:
         - `pd.DataFrame`: Df containing the information from the `.csv` file.
     """
+    os.chmod(f'/tmp/data/{table}.csv', mode=stat.S_IREAD)
     df = pd.read_csv(f'/tmp/data/{table}.csv',
                      names=schemas[table][0],
                      header=None)

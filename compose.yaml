@@ -3,7 +3,7 @@ services:
     db:
         build: ./db
         networks:
-            - app-net
+            - back-net
         expose:
             - 3306
             - 33060
@@ -14,33 +14,31 @@ services:
         tty: true
         stdin_open: true
         networks:
-            - app-net
+            - front-net
+            - back-net
         volumes:
             - app-vol:/tmp
         depends_on:
             - db
         expose:
             - 8000
-            # - 3306
-            # - 33060
 
-            # python 3.11
+    # python 3.11
     client:
         build: ./client
         command: /bin/bash
         tty: true
         stdin_open: true
         networks:
-            - app-net
+            - front-net
         volumes:
             - app-vol:/tmp
         depends_on:
             - api
-        expose:
-            - 8000
 
 networks:
-    app-net:
+    back-net:
+    front-net:
 
 
 volumes:
