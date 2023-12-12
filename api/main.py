@@ -1,7 +1,8 @@
 import uvicorn
 from fastapi import FastAPI
 from sqlalchemy import table
-from functions import populate_tables_init, get_by_id, update_mysql, backup_mysql_to_avro, restore_mysql_from_avro
+from functions import populate_tables_init, get_by_id, update_mysql, get_req1
+from functions import backup_mysql_to_avro, restore_mysql_from_avro, get_req2
 
 
 populate_tables_init()
@@ -20,6 +21,14 @@ def home():
 @app.get('/view/{table}/{id}')
 def _get_by_id(id, table):
     return get_by_id(id, table)
+
+@app.get('/view/req1')
+def _get_req1():
+    return get_req1()
+
+@app.get('/view/req2')
+def _get_req2():
+    return get_req2()
 
 @app.get('/new_records/{table}')
 def _update_mysql(table):

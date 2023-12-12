@@ -1,4 +1,6 @@
 #!/bin/sh
+
+# Script to iteratively setup Docker environment
 docker compose down
 docker volume rm -f app-vol
 docker image rm -f data-architecture-db data-architecture-api data-architecture-client

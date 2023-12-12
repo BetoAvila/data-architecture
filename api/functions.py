@@ -1,7 +1,8 @@
-from pyclbr import Function
 from fastavro import writer, reader, parse_schema
 from datetime import datetime
+import plotly.express as px
 import pandas as pd
+import numpy as np
 import logging
 import stat
 import os
@@ -237,3 +238,62 @@ def get_by_id(id: str, table: str) -> dict:
         le(f'Error while querying {table} MySQL table: {e}')
         return {'response': f'no records with id {id} on table {table}'}
 
+
+def get_req1():
+    """
+    Function to implement Requirement 1, it creates a `csv` file with the data
+    and a `html` file with an interactive plot.
+    """    
+    df_em = read_mysql('employees')
+    df_jb = read_mysql('jobs')
+    df_dp = read_mysql('departments')
+    df_em['hiring_date'] = pd.to_datetime(df_em.hiring_date, format='%Y-%m-%dT%H:%M:%SZ')
+    df = df_em.merge(df_dp, how='left', on='department_id').merge(df_jb, how='left', on='job_id')
+    df = df[(df.hiring_date.dt.year >= 2021) & (df.hiring_date.dt.year < 2022)]
+    df['Q1'] = np.where(df.hiring_date.dt.quarter == 1, 1, 0)
+    df['Q2'] = np.where(df.hiring_date.dt.quarter == 2, 1, 0)
+    df['Q3'] = np.where(df.hiring_date.dt.quarter == 3, 1, 0)
+    df['Q4'] = np.where(df.hiring_date.dt.quarter == 4, 1, 0)
+    df = df[['department_name','job_name','Q1','Q2','Q3','Q4']]\
+        .groupby(['department_name','job_name'])\
+        .sum().reset_index().sort_values(['department_name','job_name'])
+    df.to_csv('/tmp/data/req1.csv', index=False)
+    df['Department-Job'] = df.department_name + ' - ' + df.job_name
+    fig = px.imshow(df[['Q1','Q2','Q3','Q4']].values,
+                labels=dict(x='Quarter', y='Department-Job'),
+                x=['Q1','Q2','Q3','Q4'],
+                y=df['Department-Job'])
+    fig.update_xaxes(side='top')
+    fig.layout.height = 20000
+    fig.layout.width = 600
+    fig.write_html('/tmp/data/req1.html')
+    li('Saved resulting files from requirement 1')
+    return {'response':'Finished requirement 1'}
+
+
+def get_req2():
+    """
+    Function to implement Requirement 2, it creates a `csv` file with the data
+    and a `html` file with an interactive plot.
+    """
+    df_em = read_mysql('employees')
+    df_jb = read_mysql('jobs')
+    df_dp = read_mysql('departments')
+    df_em['hiring_date'] = pd.to_datetime(df_em.hiring_date, format='%Y-%m-%dT%H:%M:%SZ')
+    df = df_em.merge(df_dp, how='left', on='department_id').merge(df_jb, how='left', on='job_id')
+    df = df[(df.hiring_date.dt.year >= 2021) & (df.hiring_date.dt.year < 2022)]
+    avg = df.shape[0]/df_dp.shape[0]
+    df = df[['department_name','hiring_date']]\
+        .groupby(['department_name']).count().reset_index()\
+        .merge(df_dp, how='left',on='department_name')\
+        .rename({'hiring_date':'hired'}, axis=1)
+    df = df[df.hired > avg][['department_id','department_name','hired']]\
+        .sort_values('hired',ascending=False)
+    df.to_csv('/tmp/data/req2.csv', index=False)
+    fig = px.bar(df[['department_name', 'hired']], 
+             x='department_name', y='hired',title='Departments hiring above average')
+    fig.layout.height = 500
+    fig.layout.width = 650
+    fig.write_html('/tmp/data/req2.html')
+    li('Saved resulting files from requirement 2')
+    return {'response':'Finished requirement 2'}

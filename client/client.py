@@ -33,7 +33,7 @@ def le(msg: str) -> None:
 
 def add_new_records(table: str) -> None:
     if os.path.exists(f'/tmp/data/{table}.csv'): os.remove(f'/tmp/data/{table}.csv')
-    shutil.copy2(f'/home/{table}.csv', f'/tmp/data/{table}.csv')
+    shutil.copy2(f'/home/data/{table}.csv', f'/tmp/data/{table}.csv')
     print(requests.get(url + f'/new_records/{table}').text)
     li('finished "add_new_records" function')
 
@@ -51,3 +51,13 @@ def restore(table: str) -> None:
 def get_by_id(id: str, table: str) -> None:
     print(requests.get(url + f'/view/{table}/{id}').text)
     li('finished "get_by_id" function')
+
+
+def req1():
+    print(requests.get(url + '/view/req1').text)
+    li('finished "req1" function')
+
+
+def req2():
+    print(requests.get(url + '/view/req2').text)
+    li('finished "req2" function')
