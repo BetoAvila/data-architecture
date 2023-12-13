@@ -1,6 +1,6 @@
 ##### Initial reqs
-requests
-datetime
+# requests
+# datetime
 
 ##### Reqs from pip freeze
 certifi==2023.11.17

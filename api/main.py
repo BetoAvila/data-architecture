@@ -1,6 +1,5 @@
 import uvicorn
 from fastapi import FastAPI
-from sqlalchemy import table
 from functions import populate_tables_init, get_by_id, update_mysql, get_req1
 from functions import backup_mysql_to_avro, restore_mysql_from_avro, get_req2
 
