@@ -1,6 +1,6 @@
 # 1. Data Architecture use case
 # 2. Introduction
-This project exemplifies an architecture proposal for a data engineering use case.
+This [project](https://github.com/BetoAvila/data-architecture) exemplifies an architecture proposal for a data engineering use case.
 It mimics a fictional data migration process with certain instructions and requirements.
 - [1. Data Architecture use case](#1-data-architecture-use-case)
 - [2. Introduction](#2-introduction)
@@ -16,12 +16,19 @@ It mimics a fictional data migration process with certain instructions and requi
   - [4.2. Solution details](#42-solution-details)
     - [4.2.1. Project structure](#421-project-structure)
     - [4.2.2. The client service](#422-the-client-service)
+      - [4.2.2.1. Client functions](#4221-client-functions)
     - [4.2.3. The API service](#423-the-api-service)
-      - [REST API](#rest-api)
-      - [MySQL communication](#mysql-communication)
-      - [Avro backups](#avro-backups)
-      - [Data exploration](#data-exploration)
+      - [4.2.3.1. REST API](#4231-rest-api)
+      - [4.2.3.2. MySQL](#4232-mysql)
+      - [4.2.3.3. Avro backups and restores](#4233-avro-backups-and-restores)
+      - [4.2.3.4. Data exploration](#4234-data-exploration)
+      - [4.2.3.5. Logs](#4235-logs)
+    - [4.2.4. The DB service](#424-the-db-service)
+    - [4.2.5. compose.yaml](#425-composeyaml)
   - [4.3. Usage](#43-usage)
+    - [4.3.1. Build](#431-build)
+    - [4.3.2. Access containers](#432-access-containers)
+    - [4.3.3. Shut containers down](#433-shut-containers-down)
 - [5. Discussion and conclussions](#5-discussion-and-conclussions)
 - [6. Further work](#6-further-work)
 
@@ -161,13 +168,14 @@ A file worth mentioning is the [`up.sh`](./up.sh) file which I used to test repe
 As mentioned above, this service oversees connecting to the API to manipulate the data migration process. It was designed to be a program running on a python shell by typing commands.
 
 It is build with its [`Dockerfile`](./client/Dockerfile) which summarized instructions are:
--	Build container from [`python 3.11-slim`]( https://hub.docker.com/_/python/) which is the minimum working python environment.
+-	Build container from [`python 3.11-slim`]( https://hub.docker.com/_/python/) image which is the minimum working python environment.
 -	Set environment configurations.
 -	Copy files into container and execute [`start.sh`](./client/start.sh) file, which delegates linux environment update and installation of python dependencies to an external file, this way allows to keep the `Dockerfile` clean and short which enhances maintainability.
 
 The [`requirements.txt`]() file contains all the python libraries needed, first I list the packages names and then I list the exact versions that did successfully run on the container for future package version reference.
 
-Finally, the client is defined executes the functions defined with in file [`client.py`](./client/client.py), these are the following:
+#### 4.2.2.1. Client functions
+Finally, the client executes the functions defined with in file [`client.py`](./client/client.py), these are the following:
 ```
 # Requirement 1 functions
 
@@ -187,8 +195,8 @@ All these functions will connect to the corresponding API endpoint and will perf
 ### 4.2.3. The API service
 This is by far the most complex service defined in the project as it contains many functions. Similarly to the client service, Docker builds this container using its [`Dockerfile`](./api/Dockerfile), delegating environment setup to the [`start.sh`](./api/start.sh) file and installing dependencies defined in the [`requirements.txt`](./api/requirements.txt) file.
 
-#### REST API
-To build the REST API, I implemented [FastAPI]( https://fastapi.tiangolo.com/) with an [Uvicorn]( https://www.uvicorn.org/) python ASGI web server in the [`main.py`](./api/main.py) file. It defines the endpoints of the API and performs the tasks defined in the requirements.
+#### 4.2.3.1. REST API
+To build the REST API, I implemented [FastAPI]( https://fastapi.tiangolo.com/) with an [Uvicorn]( https://www.uvicorn.org/) python ASGI web server in the [`main.py`](./api/main.py) file. It defines the endpoints of the API and performs the tasks defined in the requirements. The functions the server performs are defined in the [`functions.py`](./api/functions.py) file.
 
 The API endpoints are:
 | Endpoint               | Use                                                                                 |
@@ -200,18 +208,160 @@ The API endpoints are:
 | `/backup/{table}`      | Generate `.avro` file to backup current state of table                              |
 | `/restore/{table}`     | Restore table from `.avro` file                                                     |
 
-These are the endpoints [`the client`](#422-the-client-service) accesses to.
+These are the endpoints [`the client`](#422-the-client-service) accesses to and result in a confirmation message with the form:
+```
+{
+    "response": "Response message"
+}
+```
 
-#### MySQL communication
-pandas, SQLAlchemy, PyMySQL, pool
+#### 4.2.3.2. MySQL
+The initial DB setup is performed once the API server starts, this means that before API server starts running, the initial DB population starts.
 
-#### Avro backups
-snappy, json schema, streamable, self describing, fastavro
+For this process, the files copied in the image build step, are placed at `/tmp/data` folder which is the shared volume, then the files are read using pandas and sent to the DB using [SQLAlchemy](https://www.sqlalchemy.org/) connection engine and [PyMySQL](https://pymysql.readthedocs.io/en/latest/user/installation.html) driver.
 
-#### Data exploration
-pandas plotly
+The connection engine is configured to have a connection pool to prevent idle connections from crashing the DB, hence when a new connection tries to start communication, the last one in the pool is removed.
+
+To update the database, the endpoint `/new_records/{table}` must be queried. This will copy the `.csv` header-less files at `/home/data/` into the shared volume at `/tmp/data/` from the client service and thus giving access from the API side, then these are read by pandas and sent (by appending) to the DB. To do this, one most first copy the `.csv` files from the host into the client container, use [`docker cp`](https://docs.docker.com/engine/reference/commandline/cp/) to achieve this:
+
+```
+docker cp /local_path_to/csv_files.csv client:/home/data/
+```
+
+This also ensures that duplicate files are not created.
+
+#### 4.2.3.3. Avro backups and restores
+To create the backup files, I used [Avro](https://avro.apache.org/docs/1.11.1/specification/) files as these present several advantages in storing and streaming tasks.
+
+Avro files have a `json` format schema which makes them self-describing, meaning the file itself is a documentation of the data stored in it, this is datatypes, column names and other information.
+
+They are great for streaming purposes since these are serialized formats and thus also allow compression (snappy format by default).
+
+This project uses [fastavro](https://fastavro.readthedocs.io/en/latest/) package to create, read and save `.avro` files.
+
+The `/backup/{table}` endpoint described in the previous section reads the `{table}` current state and stores its contents into an `.avro` file, first checking if the same backup file exists to keep the most up to date backup in storage. The location of the file is the sahed volume in the subfolder `/tmp/data`.
+
+The `/restore/{table}` endpoint described in the previous section reads the corresponding `/tmp/data/{table}.avro` file to overwrite MySQL `{table}` with such file. This opens the file, converts it into pandas df and opens a connection engine to overwrite the MySQL table with it.
+
+The schemas used for the tables are:
+
+```
+### jobs schema
+{
+    'type': 'record',
+    'name': 'jobs',
+    'fields': [
+        {'name': 'job_id', 'type': 'int'},
+        {'name': 'job_name',  'type': 'string'}
+    ]
+}
+
+### departments schema
+{
+    'type': 'record',
+    'name': 'departments',
+    'fields': [
+        {'name': 'department_id', 'type': 'int'},
+        {'name': 'department_name',  'type': 'string'}
+    ]
+}
+
+### employees schema
+{
+    'type': 'record',
+    'name': 'employees',
+    'fields': [
+        {'name': 'employee_id', 'type': 'int'},
+        {'name': 'employee_name',  'type': 'string'},
+        {'name': 'hiring_date',  'type': 'string'},
+        {'name': 'department_id', 'type': 'int'},
+        {'name': 'job_id', 'type': 'int'}
+    ]
+}
+```
+This ensures data consistency between pandas, MySQL and avro files.
+
+#### 4.2.3.4. Data exploration
+The data exploration task is performed by querying the API with either endpoints `/view/req1` or `/view/req2`, this will query the DB with a connection engine and transforming the resulting data using pandas. Then use [Plotly](https://plotly.com/) to create interactive reporting dashboards in `.html` format.
+
+These dashboards allow actions like drag and drop, zoom, select, and highlight elements in the plot. Both files, interactive `.html` dashboards and reporting `.csv` files are placed at `/tmp/data/` location. Please refer to the [`deliverables/`](./deliverables/) folder to see a sample of these files.
+
+#### 4.2.3.5. Logs
+Logging was possible thanks to the built-in [logging](https://docs.python.org/3/library/logging.html) feature of python, resulting log files are placed on the shared volume of this app `app-vol` at the location `/tmp/logs/`. It creates 2 kind of logs for both the client and API which can be accessed and retrieved even after container shut down.
+
+### 4.2.4. The DB service
+The DB service is the simplest of them all, it is build with its [`Dockerfile`](./db/Dockerfile) in which we set the necessary environment variable `ENV MYSQL_ROOT_PASSWORD=root` and execute the [`init.sql`](./db/init.sql) file. This files creates a new database calles `app_db` and defines the 3 tables with its corresponting columns and datatypes.
+
+### 4.2.5. compose.yaml
+Once we have defined all the services the [`compose.yaml`](./compose.yaml) comes into action. As mentioned previously, it is an instruction set of how to build and name the individual services, attach a volume, create and connect to a network, establish dependencies among many other [possible configurations]( https://docs.docker.com/compose/).
+
+It is defined by a `.yaml` text file which hierarchically defines items and its configurations in a key-value fashion.
+
+For instance, the service `DB`, is named simply `db` by the first instruction, then the build property points to the `Dockerfile` that builds the image of this container. Then attaches the backend network `back-net` and exposes the ports `3306, 33060` which are the default ports of MySQL. This [`expose`]( https://docs.docker.com/engine/reference/builder/#expose) instruction does not publish the port to the host, but allows containers in the same network to communicate to this one using that port.
+
+In the case of the `api` service, I define instructions to be executed with the terminal listening to commands I type, which allows me to interact with it. The compose file, also defines for this service both networks, and the shared volume. It also exposes the port `8000` which is used by the API and the Client to communicate with each other. Finally, the `depends_on` property, makes sure that only when the DB service is up and running this API server should start. This provides the possibility to control the start order.
+
+At the bottom of the [`compose.yaml`](./compose.yaml) file, I defined the network and shared volumes, it is enough to Docker with the existance of these properties to start and interconnect them.
+
 
 ## 4.3. Usage
+### 4.3.1. Build
+To start this ecosystem, execute the command on the project parent folder:
+```
+docker compose build --no-cache
+```
+This will start the build of all the services by reading the `compose.yaml` and running the instructions to build images on the `Dockerfile` files.
+
+Use the `--no-cache` flag to always build from scratch and never used cached layers, this prevents issues when building images.
+
+To start the containers, use:
+```
+docker compose up -d
+```
+and this will run them in [`detach`]( https://docs.docker.com/engine/reference/run/#detached-vs-foreground) mode.
+
+**The whole ecosystem is now running!**
+
+### 4.3.2. Access containers
+To start using the API start access the API container:
+```
+docker exec -it data-architecture-api-1 /bin/bash
+```
+then run the command to start the API server:
+```
+python main.py
+```
+open another terminal and run:
+```
+docker exec -it data-architecture-client-1 /bin/bash
+```
+open the python shell
+```
+python
+```
+and import and run any of the [`functions`](#4221-client-functions) defined in the client service, you will receive a response describing the result.
+
+For example:
+```
+# Import all functions from client
+
+from client import *
+
+
+# Run functions
+
+add_new_records('jobs')
+>>> {
+>>>     'response': '7 new records updated into jobs table'
+>>> }
+```
+
+### 4.3.3. Shut containers down
+Once you finished all transactions, run command to stop all containers safely:
+```
+docker compose down
+```
+If you want to remove volumes, networks containers and images use `docker prune` command, or refer to the [`up.sh`](./up.sh) file.
 
 # 5. Discussion and conclussions
 Containers solution was selected as it offers several advantages over traditional monolithic approaches:
@@ -224,12 +374,14 @@ Containers solution was selected as it offers several advantages over traditiona
 -	Further features could have been implemented on the API side, but the creation of more features would require instances like a load balancer, a gateway or such. Thus, this solution is simple yet functional and secure.
 -	To build the API, [fastAPI]( https://fastapi.tiangolo.com/) was selected as it is remarkably easy to use and offers awesome configurations during development process.
 -	[MySQL](https://www.mysql.com/) was selected as DB of choice as per the experience I have with it and the fact that it is, fast, simple to use, popular and can be easily integrated with other tools.
--	Logging was possible thanks to the built-in [logging](https://docs.python.org/3/library/logging.html) feature of python, resulting log files are placed on the shared volume of this app `app-vol` at the location `/tmp/logs/`. It creates 2 kind of logs for both the client and API which can be accessed and retrieved even after container shut down.
+-	Logs are creating using the logging feature, this allows both debuging and informing about the state of the system and provide record files for further analysis.
 -	The resulting deliverable files consists of 2 types of file, `.csv` and `.html` in regards to the [data exploration requirements](#32-requirement-2). The former contains the information in a tabular format easily readable, the latter contains graphic reports which are interactive plots showing the data from the `.csv` files thanks to the [Plotly](https://plotly.com/) library. Please refer to the [`deliverables/`](./deliverables/) folder.
 
 # 6. Further work
-Secrets
-Authetication
-Load balancind or API Gateway
-Kubernetes
-Cloud
+During the development of this project I want to suggest a few points.
+
+- [`Secrets`](https://docs.docker.com/compose/use-secrets/#how-to-use-secrets-in-docker-compose). Docker provides this feature to safely manage sensitive information like API keys or passwords. This would be a great improvement to the system.
+- Authetication. Another great way to improve security and control access to the API would be authentication.
+- Load balancind, reverse proxy or API Gateway. Systems like [nginx](https://www.nginx.com/) can help this and will improve ths architecture.
+- [k8s](https://kubernetes.io/). Kubernetes is the natural progression of a system this type and would automate features like failsafes, rebuilds or container restarts.
+- Cloud. Another great improvement of this project would be the implementation on cloud. This would decrease the amount of work as there are many cloud tools to migrate databases, build infrastructure and manage containers.
