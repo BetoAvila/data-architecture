@@ -157,6 +157,9 @@ def update_mysql(table: str) -> dict:
     """
     try:
         df = read_csv(table)
+        if df.shape[0] > 1000:
+            le(f'Attempting to append more than 1000 rows to {table}, action not allowed.')
+            return {'response':f'Attempting to append more than 1000 rows to {table}, action not allowed.'}
         write_mysql(df, table, 'append')
         li(f'Appended {df.shape[0]} new rows into {table} table on MySQL')
         return {'response':f'{df.shape[0]} new records updated into {table} table'}

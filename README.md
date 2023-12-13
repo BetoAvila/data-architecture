@@ -81,7 +81,7 @@ The migration considers 3 tables: `jobs`, `departments` and `employees` and thes
 | department_name | STRING    | Name of department | `Supply chain` |
 
 ## 3.2. Requirement 2
-Data exploration and exploitation. Stakeholders as for specific metrics and KPIs:
+Data exploration and exploitation. Stakeholders ask for specific metrics and KPIs:
 
 ### 3.2.1. Specifications
 1. Create an endpoint on the API to provide the number of employees hired for each job and department in 2021 divided by quarter. The table must be ordered alphabetically by department and job. Consider the sample output:
@@ -116,7 +116,7 @@ It has 3 containers each one performing a single service, despite their inherent
 
 This design prevents interactions to the DB from anywhere except the API, which is a good practice on the industry. Not even the client, which belongs to the same deployment, can connect directly to the DB.
 
-The first container is the Client, this is the entry point of the app, it job is to query the API to trigger each action. It also logs all the interactions and events from its perspective and saves this information to the `client_{datetime}.log` files. It can’t communicate directly to the DB which is a desired feature.
+The first container is the Client, this is the entry point of the app, its job is to query the API to trigger each action. It also logs all the interactions and events from its perspective and saves this information to the `client_{datetime}.log` files. It can’t communicate directly to the DB which is a desired feature.
 
 The second container is called API, here is where the API server is defined and runs, it has access to both front and backend networks and it performs multiple operations:
 -	Receive requests from the client and deliver the results.
@@ -129,7 +129,7 @@ The second container is called API, here is where the API server is defined and 
 
 Lastly, the third container defines the MySQL DB service, this service interacts with the API and returns queried information through a connection engine (defined in the API service). Basically, it stores information and allows its access.
 
-Please note that the Client and the API containers have a shared volume, this is a [Docker feature]( https://docs.docker.com/storage/volumes/#volumes) that allows to share data between containers, and from and to the host (the computer you use to run this app) even when the containers are shut down, and it does not increase the size of the container, regardless of the amount of data stored. Hence for this case, it’s perfect for logging, backing up, reporting and moving data.
+Please note that the Client and the API containers have a shared volume, this is a [Docker feature]( https://docs.docker.com/storage/volumes/#volumes) that allows to share data between containers, and from and to the host (the computer you use to run this app) even when the containers are shut down, and it does not increase the size of the container regardless of the amount of data stored. Hence for this case, it’s perfect for logging, backing up, reporting and moving data.
 
 Given that this is a multi-container application, I use [`docker compose`](https://docs.docker.com/get-started/08_using_compose/#use-docker-compose) feature with the [`compose.yaml`](./compose.yaml) file. We can consider this file as the minimum set of instructions needed to build and start all containers, their relating infrastructure, and their communications they use. And we can also see a container as the minimum computer instance with its own filesystem, kernel, memory, and storage, basically this is the simplest working computer possible.
 
@@ -218,7 +218,7 @@ These are the endpoints [`the client`](#422-the-client-service) accesses to and 
 #### 4.2.3.2. MySQL
 The initial DB setup is performed once the API server starts, this means that before API server starts running, the initial DB population starts.
 
-For this process, the files copied in the image build step, are placed at `/tmp/data` folder which is the shared volume, then the files are read using pandas and sent to the DB using [SQLAlchemy](https://www.sqlalchemy.org/) connection engine and [PyMySQL](https://pymysql.readthedocs.io/en/latest/user/installation.html) driver.
+For this process, the files copied in the image build step, are placed at `/tmp/data/` folder which is the shared volume, then the files are read using pandas and sent to the DB using [SQLAlchemy](https://www.sqlalchemy.org/) connection engine and [PyMySQL](https://pymysql.readthedocs.io/en/latest/user/installation.html) driver.
 
 The connection engine is configured to have a connection pool to prevent idle connections from crashing the DB, hence when a new connection tries to start communication, the last one in the pool is removed.
 
@@ -239,7 +239,7 @@ They are great for streaming purposes since these are serialized formats and thu
 
 This project uses [fastavro](https://fastavro.readthedocs.io/en/latest/) package to create, read and save `.avro` files.
 
-The `/backup/{table}` endpoint described in the previous section reads the `{table}` current state and stores its contents into an `.avro` file, first checking if the same backup file exists to keep the most up to date backup in storage. The location of the file is the sahed volume in the subfolder `/tmp/data`.
+The `/backup/{table}` endpoint described in the previous section reads the `{table}` current state and stores its contents into an `.avro` file, first checking if the same backup file exists to keep the most up to date backup in storage. The location of the file is the shared volume in the subfolder `/tmp/data/`.
 
 The `/restore/{table}` endpoint described in the previous section reads the corresponding `/tmp/data/{table}.avro` file to overwrite MySQL `{table}` with such file. This opens the file, converts it into pandas df and opens a connection engine to overwrite the MySQL table with it.
 
@@ -290,7 +290,7 @@ These dashboards allow actions like drag and drop, zoom, select, and highlight e
 Logging was possible thanks to the built-in [logging](https://docs.python.org/3/library/logging.html) feature of python, resulting log files are placed on the shared volume of this app `app-vol` at the location `/tmp/logs/`. It creates 2 kind of logs for both the client and API which can be accessed and retrieved even after container shut down.
 
 ### 4.2.4. The DB service
-The DB service is the simplest of them all, it is build with its [`Dockerfile`](./db/Dockerfile) in which we set the necessary environment variable `ENV MYSQL_ROOT_PASSWORD=root` and execute the [`init.sql`](./db/init.sql) file. This files creates a new database calles `app_db` and defines the 3 tables with its corresponting columns and datatypes.
+The DB service is the simplest of them all, it is build with its [`Dockerfile`](./db/Dockerfile) in which we set the necessary environment variable `ENV MYSQL_ROOT_PASSWORD=root` and execute the [`init.sql`](./db/init.sql) file. This files creates a new database called `app_db` and defines the 3 tables with its corresponting columns and datatypes.
 
 ### 4.2.5. compose.yaml
 Once we have defined all the services the [`compose.yaml`](./compose.yaml) comes into action. As mentioned previously, it is an instruction set of how to build and name the individual services, attach a volume, create and connect to a network, establish dependencies among many other [possible configurations]( https://docs.docker.com/compose/).
@@ -299,7 +299,7 @@ It is defined by a `.yaml` text file which hierarchically defines items and its 
 
 For instance, the service `DB`, is named simply `db` by the first instruction, then the build property points to the `Dockerfile` that builds the image of this container. Then attaches the backend network `back-net` and exposes the ports `3306, 33060` which are the default ports of MySQL. This [`expose`]( https://docs.docker.com/engine/reference/builder/#expose) instruction does not publish the port to the host, but allows containers in the same network to communicate to this one using that port.
 
-In the case of the `api` service, I define instructions to be executed with the terminal listening to commands I type, which allows me to interact with it. The compose file, also defines for this service both networks, and the shared volume. It also exposes the port `8000` which is used by the API and the Client to communicate with each other. Finally, the `depends_on` property, makes sure that only when the DB service is up and running this API server should start. This provides the possibility to control the start order.
+In the case of the `api` service, I define instructions to be executed in a terminal, which allows me to interact with it. The compose file, also defines for this service both networks, and the shared volume. It also exposes the port `8000` which is used by the API and the Client to communicate with each other. Finally, the `depends_on` property, makes sure that only when the DB service is up and running this API server should start. This provides the possibility to control the start orderof the containers.
 
 At the bottom of the [`compose.yaml`](./compose.yaml) file, I defined the network and shared volumes, it is enough to Docker with the existance of these properties to start and interconnect them.
 
@@ -310,7 +310,7 @@ To start this ecosystem, execute the command on the project parent folder:
 ```
 docker compose build --no-cache
 ```
-This will start the build of all the services by reading the `compose.yaml` and running the instructions to build images on the `Dockerfile` files.
+This will start the build of all the services by reading the `compose.yaml` and running the instructions to build images described on the `Dockerfile` files.
 
 Use the `--no-cache` flag to always build from scratch and never used cached layers, this prevents issues when building images.
 
@@ -367,21 +367,21 @@ If you want to remove volumes, networks containers and images use `docker prune`
 Containers solution was selected as it offers several advantages over traditional monolithic approaches:
 -	This was implemented using python as it is widely popular and has a great support community base, as well as its ease of development, debugging and maintenance.
 -	Every container lives isolated from others, enhancing safety and security of the system.
--	[Docker volumes]( https://docs.docker.com/storage/volumes/) offer a great solution for sharing files and data with multiple containers simultaneously, while also persisting data and keeping it secure without increasing the size of the container even after container are shut down.
+-	[Docker volumes]( https://docs.docker.com/storage/volumes/) offer a great solution for sharing files and data with multiple containers simultaneously, while also persisting data and keeping it secure without increasing the size of the container even after containers are shut down.
 -	Two networks were created to improve security of system, the DB and API services communicate with each other using `back-net` and the Client and API interact using `front-net`. This isolates even more the DB from external instances and it is only accessible through the API, which in turn is accessed by the client as no ports are published with the [`docker port`](https://docs.docker.com/engine/reference/commandline/port/) command.
--	Docker resolves IP addresses when referring a remote connection simply as `api` or `db`, so calling these hosts on the correct network enables communication. Refer to the MySQL connection engine and API connection string to see an example.
--	Everything is built with with [`docker compose`](https://docs.docker.com/compose/) command and file. Hence, this can be implemented in a wide variety of hosts, from cloud solutions to local environments, and it offers great flexibility of design and incredible development speed as most of configurations are simplified by the [`compose.yaml`](./compose.yaml) file and handled by Docker.
--	Further features could have been implemented on the API side, but the creation of more features would require instances like a load balancer, a gateway or such. Thus, this solution is simple yet functional and secure.
+-	Docker resolves IP addresses when referring a remote connection simply as `api` or `db`, so calling these hosts on the correct network enables communication. Refer to the MySQL connection engine and API connection string to see an example, line 25 of [`functions.py`](./api/functions.py) file and line 9 of [`client.py`](./client/client.py) file.
+-	Everything is built with [`docker compose`](https://docs.docker.com/compose/) command and file. Hence, this can be implemented in a wide variety of hosts, from cloud solutions to local environments, and it offers great flexibility of design and incredible development speed as most of configurations are simplified by the [`compose.yaml`](./compose.yaml) file and handled by Docker.
+-	Further features could have been implemented on the API side, but the creation of more of those would require instances like a load balancer, a gateway or such. Thus, this solution is simple yet functional and secure.
 -	To build the API, [fastAPI]( https://fastapi.tiangolo.com/) was selected as it is remarkably easy to use and offers awesome configurations during development process.
 -	[MySQL](https://www.mysql.com/) was selected as DB of choice as per the experience I have with it and the fact that it is, fast, simple to use, popular and can be easily integrated with other tools.
--	Logs are creating using the logging feature, this allows both debuging and informing about the state of the system and provide record files for further analysis.
+-	Logs are creating using the logging feature, this allows both debuging and informing data about the state of the system to be saved for further analysis.
 -	The resulting deliverable files consists of 2 types of file, `.csv` and `.html` in regards to the [data exploration requirements](#32-requirement-2). The former contains the information in a tabular format easily readable, the latter contains graphic reports which are interactive plots showing the data from the `.csv` files thanks to the [Plotly](https://plotly.com/) library. Please refer to the [`deliverables/`](./deliverables/) folder.
 
 # 6. Further work
 During the development of this project I want to suggest a few points.
 
-- [`Secrets`](https://docs.docker.com/compose/use-secrets/#how-to-use-secrets-in-docker-compose). Docker provides this feature to safely manage sensitive information like API keys or passwords. This would be a great improvement to the system.
-- Authetication. Another great way to improve security and control access to the API would be authentication.
-- Load balancind, reverse proxy or API Gateway. Systems like [nginx](https://www.nginx.com/) can help this and will improve ths architecture.
-- [k8s](https://kubernetes.io/). Kubernetes is the natural progression of a system this type and would automate features like failsafes, rebuilds or container restarts.
+- [`Secrets`](https://docs.docker.com/compose/use-secrets/#how-to-use-secrets-in-docker-compose). Docker provides this feature to safely manage sensitive information like API keys or passwords. This would be a great improvement to the system as it will prevent from storing sensitive information in plain text or a repo.
+- Authentication. Another great way to improve security and control access to the API would be authentication.
+- Load balancing, reverse proxy, or API Gateway. Systems like nginx can help this and will improve this architecture.
+- [k8s](https://kubernetes.io/). Kubernetes is the natural progression of a system this type and would automate features like fail safes, rebuilds or container restarts.
 - Cloud. Another great improvement of this project would be the implementation on cloud. This would decrease the amount of work as there are many cloud tools to migrate databases, build infrastructure and manage containers.
